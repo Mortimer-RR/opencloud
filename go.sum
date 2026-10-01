@@ -68,6 +68,8 @@ github.com/MicahParks/keyfunc/v2 v2.1.0/go.mod h1:rW42fi+xgLJ2FRRXAfNx9ZA8WpD4Oe
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
+github.com/Mortimer-RR/reva/v2 v2.0.0-20261001205133-58811ee92105 h1:SioeKlxFxd0K61ZtymSrsSvjX6bgDuL8CyJ3nB/y438=
+github.com/Mortimer-RR/reva/v2 v2.0.0-20261001205133-58811ee92105/go.mod h1:ngLsDakKnt8zCFCeULhuSZFESGy5NIuSq5/JGeOhPdU=
 github.com/Nerzal/gocloak/v13 v13.9.0 h1:YWsJsdM5b0yhM2Ba3MLydiOlujkBry4TtdzfIzSVZhw=
 github.com/Nerzal/gocloak/v13 v13.9.0/go.mod h1:YYuDcXZ7K2zKECyVP7pPqjKxx2AzYSpKDj8d6GuyM10=
 github.com/ProtonMail/go-crypto v1.5.2 h1:cucYnvqcY7UOXVD//mSyjeaPY0SSN3v5cDkYPxumINk=
@@ -761,8 +763,6 @@ github.com/opencloud-eu/icap-client v0.0.0-20250930132611-28a2afe62d89 h1:W1ms+l
 github.com/opencloud-eu/icap-client v0.0.0-20250930132611-28a2afe62d89/go.mod h1:vigJkNss1N2QEceCuNw/ullDehncuJNFB6mEnzfq9UI=
 github.com/opencloud-eu/libre-graph-api-go v1.0.8-0.20260902170011-45af3945a067 h1:UkNMKauyJAzY6RE6mmthz9bQZLYkbvBuApm7ZDCparE=
 github.com/opencloud-eu/libre-graph-api-go v1.0.8-0.20260902170011-45af3945a067/go.mod h1:lTM8JeGblNpoMySTW7Lui2+c5TTLI95mwxtdUIHHrhU=
-github.com/opencloud-eu/reva/v2 v2.50.1-0.20261001091108-11d87fb6b985 h1:9NpeJKVzjzMKhiTaBPz6SqtRiv6k67E5wKPPc0zg/8M=
-github.com/opencloud-eu/reva/v2 v2.50.1-0.20261001091108-11d87fb6b985/go.mod h1:ngLsDakKnt8zCFCeULhuSZFESGy5NIuSq5/JGeOhPdU=
 github.com/opencloud-eu/secure v0.0.0-20260312082735-b6f5cb2244e4 h1:l2oB/RctH+t8r7QBj5p8thfEHCM/jF35aAY3WQ3hADI=
 github.com/opencloud-eu/secure v0.0.0-20260312082735-b6f5cb2244e4/go.mod h1:BmF5hyM6tXczk3MpQkFf1hpKSRqCyhqcbiQtiAF7+40=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=

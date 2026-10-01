@@ -46,6 +46,7 @@ import (
 	"github.com/opencloud-eu/reva/v2/pkg/rhttp/datatx/metrics"
 	"github.com/opencloud-eu/reva/v2/pkg/rhttp/datatx/utils/download"
 	"github.com/opencloud-eu/reva/v2/pkg/storage/pkg/decomposedfs/disk"
+	"github.com/opencloud-eu/reva/v2/pkg/storage/pkg/decomposedfs/metadata"
 	"github.com/opencloud-eu/reva/v2/pkg/storage/pkg/decomposedfs/metadata/prefixes"
 	"github.com/opencloud-eu/reva/v2/pkg/storage/pkg/decomposedfs/node"
 	"github.com/opencloud-eu/reva/v2/pkg/utils"
@@ -56,12 +57,16 @@ var (
 	defaultFilePerm = os.FileMode(0664)
 )
 
+// statusChecksumMismatch is the status code the tus checksum extension uses for uploads whose
+// checksum does not match, https://tus.io/protocols/resumable-upload#checksum
+const statusChecksumMismatch = 460
+
 func init() {
 	tracer = otel.Tracer("github.com/opencloud-eu/reva/v2/pkg/storage/utils/decomposedfs/upload")
 }
 
 // WriteChunk writes the stream from the reader to the given offset of the upload
-func (session *DecomposedFsSession) WriteChunk(ctx context.Context, _ int64, src io.Reader) (int64, error) {
+func (session *DecomposedFsSession) WriteChunk(ctx context.Context, offset int64, src io.Reader) (int64, error) {
 	ctx, span := tracer.Start(session.Context(ctx), "WriteChunk")
 	defer span.End()
 	_, subspan := tracer.Start(ctx, "os.OpenFile")
@@ -80,6 +85,18 @@ func (session *DecomposedFsSession) WriteChunk(ctx context.Context, _ int64, src
 		_ = disk.Fdatasync(file)
 		_ = file.Close()
 	}()
+
+	// The file is opened with O_APPEND, so refuse to write if another request has changed its
+	// size since tusd checked the offset. Otherwise the chunk would land at the wrong position.
+	stat, err := file.Stat()
+	if err != nil {
+		log.Error().Err(err).Msg("WriteChunk: error stating upload file")
+		return 0, err
+	}
+	if stat.Size() != offset {
+		log.Error().Int64("offset", offset).Int64("size", stat.Size()).Msg("WriteChunk: upload file size does not match offset")
+		return 0, tusd.ErrMismatchOffset
+	}
 
 	// calculate cheksum here? needed for the TUS checksum extension. https://tus.io/protocols/resumable-upload.html#checksum
 	// TODO but how do we get the `Upload-Checksum`? WriteChunk() only has a context, offset and the reader ...
@@ -136,6 +153,11 @@ func (session *DecomposedFsSession) FinishUpload(ctx context.Context) error {
 		return tusd.NewError("ERR_ALREADY_EXISTS", err.Error(), http.StatusConflict)
 	case errtypes.Aborted:
 		return tusd.NewError("ERR_PRECONDITION_FAILED", err.Error(), http.StatusPreconditionFailed)
+	case errtypes.ChecksumMismatch:
+		// the upload has been discarded, clients have to start a new one
+		return tusd.NewError("ERR_CHECKSUM_MISMATCH", err.Error(), statusChecksumMismatch)
+	case errtypes.BadRequest:
+		return tusd.NewError("ERR_BAD_REQUEST", err.Error(), http.StatusBadRequest)
 	default:
 		return err
 	}
@@ -151,6 +173,18 @@ func (session *DecomposedFsSession) FinishUploadDecomposed(ctx context.Context) 
 	ctx = ctxpkg.ContextSetInitiator(ctx, session.InitiatorID())
 
 	ctx = context.WithoutCancel(ctx) // Do not cancel the finish process, we unconditionally want to complete the upload.
+
+	// make sure the staging file holds exactly the declared number of bytes before hashing it
+	stat, err := os.Stat(session.binPath())
+	if err != nil {
+		return err
+	}
+	if stat.Size() != session.Size() {
+		log.Error().Str("uploadid", session.ID()).Int64("expected", session.Size()).Int64("actual", stat.Size()).Msg("upload size mismatch")
+		session.Cleanup(false, true, true, false)
+		return errtypes.ChecksumMismatch(fmt.Sprintf("upload size mismatch: expected %d bytes, got %d", session.Size(), stat.Size()))
+	}
+
 	sha1h, md5h, adler32h, err := node.CalculateChecksums(ctx, session.binPath())
 	if err != nil {
 		return err
@@ -457,32 +491,59 @@ func (session *DecomposedFsSession) Cleanup(revertNodeMetadata, cleanBin, cleanI
 		} else {
 			if session.NodeExists() && session.info.MetaData["versionID"] != "" {
 				versionID := session.info.MetaData["versionID"]
-				sublog.Debug().Str("nodepath", n.InternalPath()).Str("versionID", versionID).Msg("restoring revision")
-				revisionNode, err := node.ReadNode(ctx, session.store.lu, session.SpaceID(), versionID, "", false, n.SpaceRoot, false)
-				if err != nil {
-					sublog.Error().Err(err).Str("versionID", versionID).Msg("reading revision node failed")
+				ok := func() bool {
+					// lock the node so that no other upload can finish while we restore the revision
+					unlock, err := session.store.lu.MetadataBackend().Lock(n)
+					if err != nil {
+						sublog.Error().Err(err).Str("versionID", versionID).Msg("locking node failed")
+						return false
+					}
+					defer func() { _ = unlock() }()
+
+					// only roll back if this session still owns the node. Otherwise a newer upload has
+					// replaced the content since, and restoring would overwrite it with the old version.
+					// Read the status through the backend, the node may have cached it before we locked.
+					status, err := session.store.lu.MetadataBackend().Get(ctx, n, prefixes.StatusPrefix)
+					if err != nil && !metadata.IsAttrUnset(err) {
+						sublog.Error().Err(err).Str("versionID", versionID).Msg("reading processingid for session failed")
+						return false
+					}
+					if string(status) != node.ProcessingStatus+session.ID() {
+						sublog.Info().Str("versionID", versionID).Str("status", string(status)).Msg("node was changed by another upload, keeping it and the revision")
+						return true
+					}
+
+					sublog.Debug().Str("nodepath", n.InternalPath()).Str("versionID", versionID).Msg("restoring revision")
+					revisionNode, err := node.ReadNode(ctx, session.store.lu, session.SpaceID(), versionID, "", false, n.SpaceRoot, false)
+					if err != nil {
+						sublog.Error().Err(err).Str("versionID", versionID).Msg("reading revision node failed")
+						return false
+					}
+
+					if !revisionNode.Exists {
+						sublog.Error().Str("versionID", versionID).Msg("revision node does not exist")
+						return false
+					}
+
+					// restore the revision
+					mtime, err := revisionNode.GetMTime(ctx)
+					if err != nil {
+						sublog.Error().Err(err).Str("versionID", versionID).Msg("getting mtime of revision node failed")
+						mtime = time.Now()
+					}
+
+					if err := session.store.tp.RestoreRevision(ctx, revisionNode, n, mtime); err != nil {
+						sublog.Error().Err(err).Str("versionID", versionID).Msg("restoring revision node failed")
+						return false
+					}
+
+					if err := os.RemoveAll(revisionNode.InternalPath()); err != nil {
+						sublog.Error().Err(err).Str("revisionpath", revisionNode.InternalPath()).Msg("removing restored revision file failed")
+					}
+					return true
+				}()
+				if !ok {
 					return
-				}
-
-				if !revisionNode.Exists {
-					sublog.Error().Str("versionID", versionID).Msg("revision node does not exist")
-					return
-				}
-
-				// restore the revision
-				mtime, err := revisionNode.GetMTime(ctx)
-				if err != nil {
-					sublog.Error().Err(err).Str("versionID", versionID).Msg("getting mtime of revision node failed")
-					mtime = time.Now()
-				}
-
-				if err := session.store.tp.RestoreRevision(ctx, revisionNode, n, mtime); err != nil {
-					sublog.Error().Err(err).Str("versionID", versionID).Msg("restoring revision node failed")
-					return
-				}
-
-				if err := os.RemoveAll(revisionNode.InternalPath()); err != nil {
-					sublog.Error().Err(err).Str("revisionpath", revisionNode.InternalPath()).Msg("removing restored revision file failed")
 				}
 			} else {
 				// if no other upload session is in progress (processing id != session id) or has finished (processing id == "")

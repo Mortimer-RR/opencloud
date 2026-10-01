@@ -1362,7 +1362,7 @@ github.com/opencloud-eu/icap-client
 # github.com/opencloud-eu/libre-graph-api-go v1.0.8-0.20260902170011-45af3945a067
 ## explicit; go 1.23
 github.com/opencloud-eu/libre-graph-api-go
-# github.com/opencloud-eu/reva/v2 v2.50.1-0.20261001091108-11d87fb6b985
+# github.com/opencloud-eu/reva/v2 v2.50.1-0.20261001091108-11d87fb6b985 => github.com/Mortimer-RR/reva/v2 v2.0.0-20261001205133-58811ee92105
 ## explicit; go 1.26.0
 github.com/opencloud-eu/reva/v2/cmd/revad/internal/grace
 github.com/opencloud-eu/reva/v2/cmd/revad/runtime
@@ -2090,6 +2090,7 @@ github.com/trustelem/zxcvbn/scoring
 # github.com/tus/tusd/v2 v2.10.0
 ## explicit; go 1.25.8
 github.com/tus/tusd/v2/pkg/handler
+github.com/tus/tusd/v2/pkg/memorylocker
 # github.com/unrolled/secure v1.16.0 => github.com/opencloud-eu/secure v0.0.0-20260312082735-b6f5cb2244e4
 ## explicit; go 1.13
 github.com/unrolled/secure
@@ -2708,3 +2709,4 @@ stash.kopano.io/kgol/rndm
 # github.com/unrolled/secure => github.com/opencloud-eu/secure v0.0.0-20260312082735-b6f5cb2244e4
 # go-micro.dev/v4 => github.com/butonic/go-micro/v4 v4.11.4-0.20260929213538-cd412c159a26
 # github.com/go-micro/plugins/v4/store/nats-js-kv => github.com/opencloud-eu/go-micro-plugins/v4/store/nats-js-kv v0.0.0-20250512152754-23325793059a
+# github.com/opencloud-eu/reva/v2 => github.com/Mortimer-RR/reva/v2 v2.0.0-20261001205133-58811ee92105
