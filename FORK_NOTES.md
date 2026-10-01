@@ -42,7 +42,15 @@ When upstream reva has merged the fixes and opencloud bumps to it, delete the
 Fixes that came in through the reva update also pull in
 `github.com/tus/tusd/v2/pkg/memorylocker` (new in `vendor/`).
 
-## Web assets
+## Building the image for opencloud-compose
+
+`devtools/integrity-image/build.sh` builds `opencloud-integrity:integrity-<commit>`:
+upstream's production image (same runtime stage) with the server from this checkout and
+the web client from the web fork. `devtools/integrity-image/smoke.sh` checks an image
+with opencloud-compose's `docker-compose.yml`. See `devtools/integrity-image/README.md`.
+Use it with opencloud-compose via `OC_DOCKER_IMAGE` / `OC_DOCKER_TAG`.
+
+## Web assets (manual build without Docker)
 
 The server embeds the web UI from `services/web/assets` (`//go:embed all:assets` in
 `services/web/web.go`). The Makefile fills that directory from **upstream** web:
