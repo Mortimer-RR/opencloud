@@ -1,0 +1,62 @@
+# Integrity test environment. Local test use only: self-signed TLS, basic auth enabled.
+# The admin password comes from .env (created by run.sh, never committed).
+name: integrity
+
+services:
+  opencloud:
+    image: ${IMAGE:-opencloud-integrity:dev}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["opencloud init --insecure yes --admin-password \"$$IDM_ADMIN_PASSWORD\" >/dev/null 2>&1 || true; exec opencloud server"]
+    environment:
+      OC_URL: https://opencloud.test:9200
+      OC_INSECURE: "true"
+      OC_LOG_LEVEL: ${OC_LOG_LEVEL:-warn}
+      PROXY_ENABLE_BASIC_AUTH: "true"
+      IDM_ADMIN_PASSWORD: ${IDM_ADMIN_PASSWORD:?run run.sh, it creates .env}
+      # default storage driver (posix) and async postprocessing, stated explicitly
+      STORAGE_USERS_DRIVER: posix
+      OC_ASYNC_UPLOADS: "true"
+    volumes:
+      - config:/etc/opencloud
+      - data:/var/lib/opencloud
+    # the crash scenario kills the server with SIGKILL; restart it like a supervisor would
+    restart: unless-stopped
+    networks:
+      net:
+        aliases: [opencloud.test]
+
+  # nginx in front of opencloud with request buffering on (its default) and a short read timeout
+  nginx:
+    image: nginx:1.29-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [net]
+    profiles: [proxy]
+
+  # the test driver; NET_ADMIN for tc netem
+  client:
+    build: ./client
+    cap_add: [NET_ADMIN]
+    environment:
+      OC_URL: https://opencloud.test:9200
+      OC_ADMIN_PASSWORD: ${IDM_ADMIN_PASSWORD}
+      # the server image, so that recreating the server keeps using it
+      IMAGE: ${IMAGE:-opencloud-integrity:dev}
+    volumes:
+      - ./:/test
+      - corpus:/corpus
+      - desktop:/desktop
+      # the driver kills, restarts and reconfigures the server
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /test
+    networks: [net]
+    profiles: [client]
+
+volumes:
+  config:
+  data:
+  corpus:
+  desktop:
+
+networks:
+  net:

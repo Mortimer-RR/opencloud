@@ -1,0 +1,6 @@
+# keeps uploads in postprocessing for a long time (crash and aborted-postprocessing scenarios)
+services:
+  opencloud:
+    environment:
+      POSTPROCESSING_STEPS: delay
+      POSTPROCESSING_DELAY: ${POSTPROCESSING_DELAY:-1h}
