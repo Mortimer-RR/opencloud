@@ -86,6 +86,15 @@ for _ in $(seq 1 20); do
 done
 check "uploaded file reads back" '[[ "$body" == hello ]]'
 
+# with opencloud-compose's csp.yaml, the web client may compile WebAssembly (fast checksums);
+# without 'wasm-unsafe-eval' it falls back to a slower JavaScript SHA1
+csp="$(curl_in -D - -o /dev/null "$BASE/" | tr -d '' | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')"
+if [[ "$csp" == *wasm-unsafe-eval* ]]; then
+  echo "ok   CSP allows WebAssembly ('wasm-unsafe-eval'): fast upload checksums"
+else
+  echo "note CSP has no 'wasm-unsafe-eval': the web client uses the slower JavaScript SHA1"
+fi
+
 # the embedded web client contains the upload checksum plugin (fix 5); embed.FS stores the
 # assets uncompressed in the binary
 check "embedded web client includes the upload checksum plugin"   '[[ "$(compose exec -T opencloud grep -c UploadChecksum /usr/bin/opencloud)" -gt 0 ]]'

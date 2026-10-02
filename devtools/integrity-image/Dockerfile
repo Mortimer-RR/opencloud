@@ -15,8 +15,12 @@ ARG WEB_REF=integrity
 FROM node:24 AS web
 ARG WEB_REPO
 ARG WEB_REF
+# the exact commit (build.sh resolves WEB_REF), so that a moved branch invalidates the cache
+ARG WEB_COMMIT
 WORKDIR /web
-RUN git clone --depth 1 --branch "${WEB_REF}" "${WEB_REPO}" . && git log -1 --format='web: %H %s'
+RUN git init -q . && git remote add origin "${WEB_REPO}" && \
+    git fetch -q --depth 1 origin "${WEB_COMMIT:-${WEB_REF}}" && git checkout -q FETCH_HEAD && \
+    git log -1 --format='web: %H %s'
 RUN --mount=type=cache,target=/pnpm-store \
     corepack enable && npm_config_store_dir=/pnpm-store pnpm install --frozen-lockfile && pnpm build
 
